@@ -84,7 +84,11 @@ def errormsg(msg):
          ...
          inkex.errormsg(_("This extension requires two selected paths."))
     """
-    sys.stderr.write((unicode(msg) + "\n").encode("UTF-8"))
+    msg = msg.decode("UTF-8") if isinstance(msg, bytes) else str(msg)
+    if hasattr(sys.stderr, "buffer"):
+        sys.stderr.buffer.write((msg + "\n").encode("UTF-8"))
+    else:
+        sys.stderr.write((msg + "\n").encode("UTF-8"))
 
 def check_inkbool(option, opt, value):
     if str(value).capitalize() == 'True':
@@ -96,7 +100,7 @@ def check_inkbool(option, opt, value):
 
 def addNS(tag, ns=None):
     val = tag
-    if ns!=None and len(ns)>0 and NSS.has_key(ns) and len(tag)>0 and tag[0]!='{':
+    if ns is not None and len(ns) > 0 and ns in NSS and len(tag) > 0 and tag[0] != '{':
         val = "{%s}%s" % (NSS[ns], tag)
     return val
 

@@ -57,15 +57,21 @@ __author__ = 'Kjell Magne Fauske'
 
 
 import sys
-from itertools import izip
 from textwrap import wrap
 from copy import deepcopy
 import codecs
 import string
-import StringIO
+try:
+    from StringIO import StringIO
+except ImportError:  # Python 3
+    from io import StringIO
 import copy
 import os
 from subprocess import Popen, PIPE
+try:
+    from itertools import izip
+except ImportError:  # Python 3
+    izip = zip
 
 try:
     # This should work when run as an Inkscape extension
@@ -134,7 +140,10 @@ def copy_to_clipboard(text):
 
         CF_UNICODETEXT = 13
         GHND = 66
-        text = unicode(text, 'utf8')
+        if isinstance(text, bytes):
+            text = text.decode('utf8')
+        else:
+            text = str(text)
         bufferSize = (len(text) + 1) * 2
         hGlobalMem = ctypes.windll.kernel32.GlobalAlloc(ctypes.c_int(GHND), ctypes.c_int(bufferSize))
         ctypes.windll.kernel32.GlobalLock.restype = ctypes.c_void_p
@@ -211,7 +220,7 @@ def nsplit(seq, n=2):
 def chunks(s, cl):
     """Split a string or sequence into pieces of length cl and return an iterator
     """
-    for i in xrange(0, len(s), cl):
+    for i in range(0, len(s), cl):
         yield s[i:i + cl]
 
 
@@ -219,10 +228,13 @@ def chunks(s, cl):
 # http://diveintopython.org/scripts_and_streams/index.html#kgp.openanything 
 def open_anything(source):
     # try to open with urllib (if source is http, ftp, or file URL)
-    import urllib
+    try:
+        from urllib.request import urlopen
+    except ImportError:
+        from urllib import urlopen
 
     try:
-        return urllib.urlopen(source)
+        return urlopen(source)
     except (IOError, OSError):
         pass
 
@@ -233,9 +245,8 @@ def open_anything(source):
         pass
 
         # treat source as string
-    import StringIO
 
-    return StringIO.StringIO(str(source))
+    return StringIO(str(source))
 
 
 def _ns(element_name, name_space='svg'):
@@ -409,7 +420,7 @@ def parse_transform(transf):
     stransf = transf.strip()
     result = re.match("(translate|scale|rotate|skewX|skewY|matrix)\s*\(([^)]*)\)\s*,?", stransf)
     if result is None:
-        raise SyntaxError, "Invalid transformation " + transf
+        raise SyntaxError("Invalid transformation " + transf)
 
     transforms = []
     #-- translate --
@@ -696,8 +707,8 @@ class TikZPathExporter(inkex.Effect):
             if file_or_string:
                 try:
                     stream = open(file_or_string, 'r')
-                except:
-                    stream = StringIO.StringIO(file_or_string)
+                except Exception:
+                    stream = StringIO(file_or_string)
             else:
                 stream = open(self.args[-1], 'r')
         except:
@@ -850,7 +861,7 @@ class TikZPathExporter(inkex.Effect):
             options.append('color=%s' % self.get_color(state.color))
 
         stroke = state.stroke.get('stroke', '')
-        if stroke <> 'none':
+        if stroke != 'none':
             if stroke:
                 if stroke == 'currentColor':
                     options.append('draw')
@@ -862,7 +873,7 @@ class TikZPathExporter(inkex.Effect):
                     options.append('draw')
 
         fill = state.fill.get('fill')
-        if fill <> 'none':
+        if fill != 'none':
             if fill:
                 if fill == 'currentColor':
                     options.append('fill')
@@ -883,7 +894,7 @@ class TikZPathExporter(inkex.Effect):
         # dash pattern has to come before dash phase. This is a bug in TikZ 2.0
         # Fixed in CVS.             
         dasharray = state.stroke.get('stroke-dasharray')
-        if dasharray and dasharray <> 'none':
+        if dasharray and dasharray != 'none':
             lengths = map(inkex.unittouu, [i.strip() for i in dasharray.split(',')])
             dashes = []
             for idx, length in enumerate(lengths):
@@ -901,7 +912,7 @@ class TikZPathExporter(inkex.Effect):
         except:
             pass
 
-        for svgname, tikzdata in PROPERTIES_MAP.iteritems():
+        for svgname, tikzdata in PROPERTIES_MAP.items():
             tikzname, valuetype, data = tikzdata
             value = state.fill.get(svgname) or state.stroke.get(svgname)
             if not value: continue
@@ -916,7 +927,7 @@ class TikZPathExporter(inkex.Effect):
                     options.append('%s' % data.get(value, ''))
             elif valuetype == DIMENSION:
                 # FIXME: Handle different dimensions in a general way
-                if value and value <> data:
+                if value and value != data:
                     options.append('%s=%.3fpt' % (tikzname, inkex.unittouu(value) * 0.80)),
             elif valuetype == FACTOR:
                 try:
@@ -1194,7 +1205,7 @@ class TikZPathExporter(inkex.Effect):
                     radi = "%.3f" % rx
                 else:
                     radi = "%3f and %.3f" % (rx, ry)
-                if ang <> 0.0:
+                if ang != 0.0:
                     s += "{[rotate=%s] arc(%.3f:%.3f:%s)}" % (ang, start_ang, end_ang, radi)
                 else:
                     s += "arc(%.3f:%.3f:%s)" % (start_ang, end_ang, radi)
@@ -1354,7 +1365,10 @@ class TikZPathExporter(inkex.Effect):
             self.document.write(sys.stdout)
 
         if self.options.mode == 'output':
-            print self.output_code.encode('utf8')
+            if sys.version_info[0] < 3:
+                print(self.output_code.encode('utf8'))
+            else:
+                print(self.output_code)
 
     def convert(self, svg_file, cmd_line_mode=False, **kwargs):
         self.getoptions()
@@ -1412,7 +1426,10 @@ def main_cmdline(**kwargs):
     effect = TikZPathExporter(inkscape_mode=False)
     tikz_code = effect.convert(svg_file=None, cmd_line_mode=True, **kwargs)
     if tikz_code:
-        print tikz_code.encode('utf8')
+        if sys.version_info[0] < 3:
+            print(tikz_code.encode('utf8'))
+        else:
+            print(tikz_code)
 
 
 if __name__ == '__main__':
